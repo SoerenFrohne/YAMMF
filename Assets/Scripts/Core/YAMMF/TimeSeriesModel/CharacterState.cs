@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace Core.YAMMF.TimeSeriesModel
 {
@@ -7,5 +8,6 @@ namespace Core.YAMMF.TimeSeriesModel
      */
     public class CharacterState
     {
+        public List<BoneState> bones; 
     }
 }
