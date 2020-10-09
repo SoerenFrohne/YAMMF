@@ -10,5 +10,6 @@ namespace Core.YAMMF.TimeSeriesModel
     public class Input
     {
         public CharacterState characterState;
+        public ControlVariables controlVariables;
     }
 }
