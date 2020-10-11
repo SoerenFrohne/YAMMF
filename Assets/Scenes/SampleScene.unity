@@ -503,6 +503,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   rootBone: {fileID: 45943576}
+  animationsPath: Assets/AnimationData/Animations/Locomotion
 --- !u!1 &796070718
 GameObject:
   m_ObjectHideFlags: 0
