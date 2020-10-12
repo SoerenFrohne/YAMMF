@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Core.Utils.Extensions;
 using Core.YAMMF.CharacterControl;
 using Core.YAMMF.TimeSeriesModel;
 using UnityEditor;
@@ -15,16 +16,17 @@ namespace Core.Utils
 {
     public class AnimationAnalyser : MonoBehaviour
     {
-        private struct FrameState
+        private class FrameState
         {
-            public int relativeFrame; // frame number relative to its animation
+            public float timeStamp;
             public string animationName;
             public BoneState[] bones;
-            public RootTrajectory rootTrajectory;
+            public Matrix4x4 rootState;
         }
 
         public Transform rootBone;
         public string animationsPath;
+        [Tooltip("Samples per second")] public float sampleRate = 60f;
 
         private Animator _animator;
         private AnimatorController _controller;
@@ -48,25 +50,26 @@ namespace Core.Utils
             if (GUI.Button(new Rect(Screen.width - 128, 192, 128, 32), "Analyse Clips"))
             {
                 StartCoroutine(AnalyseClips());
+                //Play();
             }
 
             // Show after analysing
             if (!_analysed) return;
             GUI.Label(new Rect(Screen.width - 250, 72, 250, 32),
-                "Rel. Frame: " + _frames[_currentFrame].relativeFrame + " (" +
-                (_frames[_currentFrame].relativeFrame / (float) GetKeyframeLength()) + ")");
+                "Rel. Frame: " + _frames[_currentFrame].timeStamp + " (" +
+                (_frames[_currentFrame].timeStamp / (float) GetKeyframeLength()) + ")");
             GUI.Label(new Rect(Screen.width - 250, 24, 250, 32), "Clip: " + _frames[_currentFrame].animationName);
 
             if (GUI.Button(new Rect(Screen.width - 256, 224, 128, 32), "Previous Frame"))
             {
                 _currentFrame = _currentFrame == 0 ? _frames.Count - 1 : _currentFrame - 1;
-                SamplePose(_frames[_currentFrame].animationName, _frames[_currentFrame].relativeFrame);
+                SamplePose(_frames[_currentFrame].animationName, _frames[_currentFrame].timeStamp);
             }
 
             if (GUI.Button(new Rect(Screen.width - 128, 224, 128, 32), "Next Frame"))
             {
                 _currentFrame = (_currentFrame + 1) % (_frames.Count);
-                SamplePose(_frames[_currentFrame].animationName, _frames[_currentFrame].relativeFrame);
+                SamplePose(_frames[_currentFrame].animationName, _frames[_currentFrame].timeStamp);
             }
         }
 
@@ -74,6 +77,7 @@ namespace Core.Utils
         {
             _animator = GetComponent<Animator>();
             _frames = new List<FrameState>();
+            _animator.speed = 0;
             //SamplePose(_animator.GetCurrentAnimatorClipInfo(0)[0].clip.name, 0);
         }
 
@@ -117,7 +121,12 @@ namespace Core.Utils
                 AnimationClip clip = _clips[index];
                 if (index != 0) lastState = currentState;
                 currentState = _controller.layers[0].stateMachine.AddState(clip.name);
-                if (index != 0) lastState.AddTransition(currentState);
+                if (index != 0)
+                {
+                    AnimatorStateTransition transition = lastState.AddTransition(currentState, true);
+                    transition.exitTime = 1f;
+                    transition.duration = 0;
+                }
                 currentState.motion = clip;
             }
 
@@ -127,15 +136,90 @@ namespace Core.Utils
         }
 
 
-        private void SamplePose(string stateName, int frame)
+
+        private void SamplePose(string stateName, float time)
         {
-            //_animator.speed = 0;
-            _animator.Play(stateName, 0, frame / (float) GetKeyframeLength());
+            _animator.enabled = false;
+            _clips.Find(clip => clip.name.Equals(stateName)).SampleAnimation(gameObject, time);
+
+            int relativeFrame = (int) (time * GetKeyframeLength());
+            Matrix4x4 rootMotion = AnimationUtils.GetFlatRootMotion(GetCurrentClip(),relativeFrame);
+
+            //transform.position = MatrixExtension.ExtractTranslationFromMatrix(ref rootMotion);
+            //transform.rotation = MatrixExtension.ExtractRotationFromMatrix(ref rootMotion);
+            
+        }
+
+        private void SamplePose()
+        {
+            _animator.enabled = false;
+            for (int i = 0; i < _boneTransforms.Count; i++)
+            {
+                _boneTransforms[i].position = _frames[_currentFrame].bones[i].currentPosition;
+                _boneTransforms[i].rotation = Quaternion.LookRotation(_frames[_currentFrame].bones[i].forwardVector,
+                    _frames[_currentFrame].bones[i].upVector);
+            }
+        }
+
+
+
+        FrameState frame;
+        private FrameState lastFrame;
+
+        private void Play()
+        {
+            _animator.speed = 1;
+            _animator.Play(GetCurrentClip().name);
+            InvokeRepeating(nameof(AnalyseSamplePose), 0f, 1f / sampleRate);
+        }
+
+        private void AnalyseSamplePose()
+        {
+            // Check if finished
+            if (_animator.GetCurrentAnimatorStateInfo(0).normalizedTime > 1 && !_animator.IsInTransition(0))
+            {
+                CancelInvoke();
+                _currentFrame = _frames.Count - 1;
+                _analysed = true;
+            }
+            else
+            {
+                frame = new FrameState {animationName = GetCurrentClip().name};
+
+                // Get Bone Transforms
+                if (rootBone == null) return;
+                _boneTransforms = new List<Transform>();
+                _boneTransforms.AddRange(rootBone.GetComponentsInChildren<Transform>());
+
+                // Save data for each bone
+                frame.bones = new BoneState[_boneTransforms.Count];
+                frame.timeStamp = _animator.GetCurrentAnimatorStateInfo(0).normalizedTime;
+                _frames.Add(frame);
+                for (int b = 0; b < _boneTransforms.Count; b++)
+                {
+                    // Skip saving the last position for the first frame
+                    if (frame.bones[b] == null) frame.bones[b] = new BoneState();
+
+                    frame.bones[b].lastPosition = lastFrame?.bones[b].currentPosition ?? _boneTransforms[b].position;
+                    frame.bones[b].currentPosition = _boneTransforms[b].position;
+                    frame.bones[b].upVector = _boneTransforms[b].up;
+                    frame.bones[b].forwardVector = _boneTransforms[b].forward;
+                }
+
+                // Save root data for each frame
+                frame.rootState = AnimationUtils.GetRootMotion(GetCurrentClip(), (int) (frame.timeStamp * GetKeyframeLength()));
+                //frame.rootTrajectory.lastPosition = lastFrame?.rootTrajectory.currentPosition ?? Vector2.zero;
+                //frame.rootTrajectory.currentPosition = new Vector2(position.x, y: position.z);
+
+                lastFrame = frame;
+            }
         }
 
         private IEnumerator AnalyseClips()
         {
             int frameIndex = 0;
+            _currentFrame = frameIndex;
+
             foreach (string clipName in _clips.Select(clip => clip.name))
             {
                 Debug.Log("Analysing " + clipName);
@@ -146,15 +230,20 @@ namespace Core.Utils
                 _boneTransforms.AddRange(rootBone.GetComponentsInChildren<Transform>());
 
                 // Setup pose for each frame
-                for (int i = 0; i <= GetKeyframeLength(); i++)
+                for (int f = 0; f <= GetKeyframeLength(); f++)
                 {
                     FrameState frame = new FrameState {animationName = clipName};
-                    SamplePose(clipName, i);
+                    SamplePose(clipName, f / (float) GetKeyframeLength());
                     yield return new WaitForSeconds(.005f);
 
                     // Save data for each bone
                     frame.bones = new BoneState[_boneTransforms.Count];
-                    frame.relativeFrame = i;
+
+                    frame.timeStamp = f / (float) GetKeyframeLength();
+
+                    // Save root data for each frame
+                    frame.rootState = AnimationUtils.GetRootMotion(GetCurrentClip(), (int) frame.timeStamp * GetKeyframeLength());
+
                     _frames.Add(frame);
                     for (int b = 0; b < _boneTransforms.Count; b++)
                     {
@@ -162,27 +251,19 @@ namespace Core.Utils
                         if (_frames[frameIndex].bones[b] == null) _frames[frameIndex].bones[b] = new BoneState();
 
                         _frames[frameIndex].bones[b].lastPosition =
-                            i == 0 ? _boneTransforms[b].position : _frames[frameIndex - 1].bones[b].currentPosition;
+                            f == 0 ? _boneTransforms[b].position : _frames[frameIndex - 1].bones[b].currentPosition;
                         _frames[frameIndex].bones[b].currentPosition = _boneTransforms[b].position;
                         _frames[frameIndex].bones[b].upVector = _boneTransforms[b].up;
                         _frames[frameIndex].bones[b].forwardVector = _boneTransforms[b].forward;
                     }
 
-                    // Save root data for each frame
-                    Vector3 position = rootBone.position;
-                    frame.rootTrajectory.lastPosition =
-                        i == 0 ? Vector2.zero : _frames[frameIndex - 1].rootTrajectory.currentPosition;
-                    frame.rootTrajectory.currentPosition = new Vector2(position.x, y: position.z);
-
                     frameIndex++;
                 }
-
 
                 Debug.Log("Finished analysing " + clipName);
             }
 
             frameIndex--;
-            _currentFrame = frameIndex;
             _analysed = true;
             Debug.Log(frameIndex);
         }
@@ -206,10 +287,13 @@ namespace Core.Utils
         private void DrawVelocities()
         {
             Gizmos.color = Color.red;
-            foreach (BoneState bone in _frames[_currentFrame].bones)
+            for (int i = 0;
+                i < _frames[_currentFrame].bones.Length;
+                i++)
             {
                 if (_currentFrame == 0) return;
-                Gizmos.DrawLine(bone.currentPosition, bone.currentPosition + bone.GetVelocity());
+                Gizmos.DrawLine(_boneTransforms[i].position,
+                    _boneTransforms[i].position + _frames[_currentFrame].bones[i].GetVelocity());
             }
         }
 
@@ -218,21 +302,11 @@ namespace Core.Utils
             Gizmos.color = Color.cyan;
             for (int i = 1; i < _frames.Count; i++)
             {
-                FrameState frame = _frames[i];
-                Vector3 newPosition = new Vector3(frame.rootTrajectory.currentPosition.x, 0,
-                    frame.rootTrajectory.currentPosition.y);
-                Vector3 oldPosition = new Vector3(frame.rootTrajectory.lastPosition.x, 0,
-                    frame.rootTrajectory.lastPosition.y);
+                Vector3 newPosition = MatrixExtension.ExtractTranslationFromMatrix(ref _frames[i].rootState);
+                Vector3 oldPosition = MatrixExtension.ExtractTranslationFromMatrix(ref _frames[i - 1].rootState);
                 Gizmos.DrawLine(newPosition, oldPosition);
-                Gizmos.DrawSphere(
-                    new Vector3(frame.rootTrajectory.currentPosition.x, 0,
-                        frame.rootTrajectory.currentPosition.y), .01f);
+                Gizmos.DrawSphere(newPosition, .01f);
             }
-        }
-
-        private int GetKeyframeLength()
-        {
-            return (int) (GetCurrentClip().length * GetCurrentClip().frameRate);
         }
 
         private AnimationClip GetCurrentClip()
