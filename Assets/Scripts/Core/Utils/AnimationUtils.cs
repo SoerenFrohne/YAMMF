@@ -32,7 +32,7 @@ namespace Core.Utils
             return clips;
         }
         
-        public static int GetKeyframeLength(AnimationClip clip)
+        public static int GetKeyframeLength(this AnimationClip clip)
         {
             return (int) (clip.length * clip.frameRate);
         }
