@@ -11,7 +11,7 @@ namespace Core.YAMMF.TimeSeriesModel
         /**
          * Vector of all bones with its positions, velocities and rotations
          */
-        public List<BoneState> bones;
+        public List<BoneSnapshot> bones;
 
         /**
          * Control Variables are used to guide the character to conduct various handball movements.

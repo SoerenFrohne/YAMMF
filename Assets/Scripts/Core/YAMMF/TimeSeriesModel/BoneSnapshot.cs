@@ -3,8 +3,15 @@ using UnityEngine;
 
 namespace Core.YAMMF.TimeSeriesModel
 {
-    public class BoneState
+    [Serializable]
+    public class BoneSnapshot
     {
+        public string name;
+
+        public bool isRoot;
+        
+        public Transform parent;
+        
         /**
          * Position of the bone transformed into the root coordinate system of the character
          */

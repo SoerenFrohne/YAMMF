@@ -1,14 +1,15 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using Core.Utils;
 using Core.Utils.Extensions;
+using Core.YAMMF.TimeSeriesModel;
 using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
-using BoneState = Core.YAMMF.TimeSeriesModel.BoneState;
 using Object = UnityEngine.Object;
 
-namespace Core.Utils
+namespace Core.YAMMF.Analysing
 {
     public class AnimationAnalyser : MonoBehaviour
     {
@@ -16,7 +17,7 @@ namespace Core.Utils
         {
             public float timeStamp;
             public string animationName;
-            public BoneState[] bones;
+            public BoneSnapshot[] bones;
             public Matrix4x4 rootState;
         }
 
@@ -71,8 +72,12 @@ namespace Core.Utils
         {
             _animator = GetComponent<Animator>();
             _frames = new List<FrameState>();
+            
+            // Get Bone Transforms
+            _boneTransforms = new List<Transform>();
+            _boneTransforms.AddRange(rootBone.GetComponentsInChildren<Transform>());
+            
             _animator.speed = 0;
-            //SamplePose(_animator.GetCurrentAnimatorClipInfo(0)[0].clip.name, 0);
         }
 
         private void OnApplicationQuit()
@@ -120,20 +125,15 @@ namespace Core.Utils
                 string clipName = clip.name;
                 Debug.Log("Analysing " + clipName);
 
-                // Get Bone Transforms
-                if (rootBone == null) yield break;
-                _boneTransforms = new List<Transform>();
-                _boneTransforms.AddRange(rootBone.GetComponentsInChildren<Transform>());
-
                 // Setup pose for each frame
                 for (int f = 0; f <= clip.GetKeyframeLength(); f++)
                 {
                     FrameState frame = new FrameState {animationName = clipName};
                     SamplePose(clipName, f / (float) clip.GetKeyframeLength());
-                    yield return new WaitForSeconds(.005f);
+                    yield return new WaitForSeconds(.00f);
 
                     // Save data for each bone
-                    frame.bones = new BoneState[_boneTransforms.Count];
+                    frame.bones = new BoneSnapshot[_boneTransforms.Count];
 
                     frame.timeStamp = f / (float) clip.GetKeyframeLength();
 
@@ -144,7 +144,7 @@ namespace Core.Utils
                     for (int b = 0; b < _boneTransforms.Count; b++)
                     {
                         // Skip saving the last position for the first frame
-                        if (_frames[frameIndex].bones[b] == null) _frames[frameIndex].bones[b] = new BoneState();
+                        if (_frames[frameIndex].bones[b] == null) _frames[frameIndex].bones[b] = new BoneSnapshot();
 
                         _frames[frameIndex].bones[b].lastPosition =
                             f == 0 ? _boneTransforms[b].position : _frames[frameIndex - 1].bones[b].currentPosition;
