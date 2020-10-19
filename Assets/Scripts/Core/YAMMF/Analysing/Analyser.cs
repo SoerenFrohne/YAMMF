@@ -7,7 +7,7 @@ namespace Core.YAMMF.Analysing
     /// <summary>
     /// Investigatables are specific data that can be extracted from an animation
     /// </summary>
-    public abstract class Investigatable : ScriptableObject
+    public abstract class Analyser : ScriptableObject
     {
         /// <summary>
         /// Extract data from an animation
@@ -24,6 +24,6 @@ namespace Core.YAMMF.Analysing
         /// </summary>
         public abstract void Draw(int frame);
 
-        public abstract void ExportData(AnimationSetData animationSet);
+        public abstract void ExportData(AnimationDataSet animationDataSet);
     }
 }

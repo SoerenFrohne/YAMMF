@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Core.YAMMF.Analysing.Snapshots;
 using UnityEngine;
 
 namespace Core.YAMMF.TimeSeriesModel

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using Core.Utils;
+using Core.YAMMF.Analysing.Snapshots;
 using Core.YAMMF.CharacterControl;
 using Core.YAMMF.TimeSeriesModel;
 using UnityEditor;
@@ -17,15 +18,13 @@ namespace Core.YAMMF.Analysing.Analysers
     }
 
     [CreateAssetMenu(fileName = "BoneAnalyser", menuName = "YAMMF/Analysers/Bones")]
-    public class BoneAnalyser : Investigatable
+    public class BoneAnalyser : Analyser
     {
         public FrameSnapshot[] frames = new FrameSnapshot[0];
 
         public override IEnumerator ExtractData(AnimationClip clip, Poser poser, int frameIndex)
         {
-            Debug.Log(frames.Length);
-
-            for (int f = 0; f <= clip.GetKeyframeLength(); f++)
+            for (int f = 0; f <= clip.GetUpperBound(); f++)
             {
                 // Global frame index
                 int i = frameIndex + f;
@@ -42,7 +41,7 @@ namespace Core.YAMMF.Analysing.Analysers
                     Transform bone = poser.Bones[b];
 
                     frameSnapshot.bones[b].isRoot = bone == poser.rootBone;
-                    frameSnapshot.bones[b].parent = bone.parent;
+                    frameSnapshot.bones[b].parentPosition = bone.parent.position;
                     frameSnapshot.bones[b].name = bone.name;
                     frameSnapshot.bones[b].lastPosition = f == 0 ? bone.position : frames[i - 1].bones[b].currentPosition;
                     frameSnapshot.bones[b].currentPosition = bone.position;
@@ -70,14 +69,16 @@ namespace Core.YAMMF.Analysing.Analysers
                 }
                 else
                 {
-                    Gizmos.DrawLine(frames[frame].bones[i].currentPosition, frames[frame].bones[i].parent.position);
+                    Gizmos.DrawLine(frames[frame].bones[i].currentPosition, frames[frame].bones[i].parentPosition);
                     Gizmos.DrawSphere(frames[frame].bones[i].currentPosition, .01f);
                 }
             }
         }
 
-        public override void ExportData(AnimationSetData animationSet)
+        public override void ExportData(AnimationDataSet animationDataSet)
         {
+            BoneAnalyser tmp = Instantiate(this);
+            AssetDatabase.AddObjectToAsset(tmp, animationDataSet);
         }
     }
 }

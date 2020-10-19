@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using Core.Utils;
 using Core.Utils.Extensions;
+using Core.YAMMF.Analysing.Snapshots;
 using Core.YAMMF.TimeSeriesModel;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -126,16 +127,16 @@ namespace Core.YAMMF.Analysing
                 Debug.Log("Analysing " + clipName);
 
                 // Setup pose for each frame
-                for (int f = 0; f <= clip.GetKeyframeLength(); f++)
+                for (int f = 0; f <= clip.GetUpperBound(); f++)
                 {
                     FrameState frame = new FrameState {animationName = clipName};
-                    SamplePose(clipName, f / (float) clip.GetKeyframeLength());
+                    SamplePose(clipName, f / (float) clip.GetUpperBound());
                     yield return new WaitForSeconds(.00f);
 
                     // Save data for each bone
                     frame.bones = new BoneSnapshot[_boneTransforms.Count];
 
-                    frame.timeStamp = f / (float) clip.GetKeyframeLength();
+                    frame.timeStamp = f / (float) clip.GetUpperBound();
 
                     // Save root data for each frame
                     // frame.rootState = AnimationUtils.GetRootMotion(GetCurrentClip(), (int) frame.timeStamp * clip.GetKeyframeLength());

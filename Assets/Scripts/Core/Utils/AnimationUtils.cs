@@ -32,7 +32,18 @@ namespace Core.Utils
             return clips;
         }
         
-        public static int GetKeyframeLength(this AnimationClip clip)
+        /// <summary>
+        /// Returns the number of frames of an animation. 
+        /// </summary>
+        public static int GetFrameCount(this AnimationClip clip)
+        {
+            return GetUpperBound(clip) + 1;
+        }
+        
+        /// <summary>
+        /// Returns the key of the last frame of an animation. 
+        /// </summary>
+        public static int GetUpperBound(this AnimationClip clip)
         {
             return (int) (clip.length * clip.frameRate);
         }

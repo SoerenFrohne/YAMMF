@@ -4,14 +4,16 @@ using System.Collections.Generic;
 using System.Linq;
 using Core.Utils;
 using Core.YAMMF.TimeSeriesModel;
+using UnityEditor.PackageManager.UI;
 using UnityEngine;
 
 namespace Core.YAMMF.CharacterControl
 {
     public class Poser : MonoBehaviour
     {
+        public bool analysed;
         public int currentFrame;
-        public int totalFrames;
+        public int upperLimitFrame;
         public Transform rootBone;
         public List<Transform> Bones { get; private set; }
         public Draw draw;
@@ -24,27 +26,25 @@ namespace Core.YAMMF.CharacterControl
             LoadBones();
         }
 
-
-        public delegate void Draw(int frame);
-
-        public void ResetToTPose()
+        public void SamplePose(List<Transform> bones)
         {
-            
+            for (int i = 0; i < bones.Count; i++)
+            {
+                Bones[i].position = bones[i].position;
+                Bones[i].rotation = bones[i].rotation;
+            }
         }
         
         public void SamplePose(AnimationClip clip, int frame)
         {
-            clip.SampleAnimation(gameObject, ((float) frame) / (clip.length * clip.frameRate));
-
+            clip.SampleAnimation(gameObject, ((float) frame) / clip.GetUpperBound());
         }
-        
-        private void SamplePose(AnimationClip clip, float time)
+
+        public void SamplePose(AnimationClip clip, float time)
         {
-            _animator.enabled = false;
             clip.SampleAnimation(gameObject, time);
         }
 
-        
         private void LoadBones()
         {
             if (rootBone == null) return;
@@ -52,24 +52,11 @@ namespace Core.YAMMF.CharacterControl
             Bones.AddRange(rootBone.GetComponentsInChildren<Transform>());
         }
 
+        public delegate void Draw(int frame);
+
         private void OnDrawGizmos()
         {
             draw?.Invoke(currentFrame);
-        }
-
-        private void DrawBones()
-        {
-            Gizmos.color = new Color(0, 0, 1, 1);
-            foreach (Transform b in Bones)
-            {
-                if (b == rootBone)
-                    Gizmos.DrawSphere(b.position, .03f);
-                else
-                {
-                    Gizmos.DrawLine(b.position, b.parent.position);
-                    Gizmos.DrawSphere(b.position, .01f);
-                }
-            }
         }
     }
 }

@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Core.YAMMF.Analysing
 {
-    public class AnimationSetData : ScriptableObject
+    public class AnimationDataSet : ScriptableObject
     {
     }
 }
